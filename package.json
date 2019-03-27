@@ -1,0 +1,16 @@
+{
+  "name": "vorp",
+  "version": "1.0.0",
+  "description": "There are various things you can do to quickly and efficiently configure your Codio Box to your exact requirements.",
+  "main": "tron.js",
+  "scripts": {
+    "start": "node tron.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.16.4",
+    "socket.io": "^2.2.0"
+  }
+}
