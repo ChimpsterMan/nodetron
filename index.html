@@ -6,16 +6,184 @@
       * {
         margin: 0;
         padding: 0;
+        overflow:hidden;
+      }
+      #content {
+        text-align:center;
+      }
+      #controls {
+        position: absolute;
+        display: block;
+      }
+      #start {
+        background: blue;
+      }
+      #start a{
+        font-size:20vh;
       }
     </style>
   </head>
   <body>
-    <canvas id="game"></canvas>
+    <div id="controls">
+      <div id="start">
+        <a onclick="startGame()">Start</a>
+      </div>
+    </div>
+    <div id="content">
+      <canvas id="game"></canvas>
+    </div>
     
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://code.jquery.com/jquery-1.11.1.js"></script>
     <script>
-      
+      $(function(){
+        var socket = io();
+        var canvas = document.getElementById("game");
+        canvas.width = window.innerHeight;
+        canvas.height = window.innerHeight;
+        var ctx = canvas.getContext("2d");
+        var size = canvas.height;
+        var x = size / 2,
+          y = size / 2,
+          dir = "UP",
+          speed = 4,
+          trailSize = 5,
+          colors = [],
+          color,
+          spectator = false;
+        
+        socket.on('connect', function(){
+          socket.emit('newConnection');
+        });
+        
+        socket.on('setup', function(c, status){
+          if (status == "playing") {
+            color = c;
+          } else {
+            spectator = true;
+          }
+        });
+        
+        function startGame(){
+          socket.emit('startGame');
+        }
+        
+        
+        colors.push("#0056e2");
+        ctx.fillStyle = "#303030";
+        ctx.fillRect(0, 0, size, size);
+        trailSize*=2.5;
+        function start(){
+          var playing = setInterval(run, 30);
+        }
+        
+        function run() {
+          //movement
+          switch (dir) {
+            case "UP":
+              y -= speed;
+              break;
+            case "RIGHT":
+              x += speed;
+              break;
+            case "DOWN":
+              y += speed;
+              break;
+            case "LEFT":
+              x -= speed;
+              break;
+          }
+        
+          //collisions
+          collisionCheck();
+        
+          //draw the trail
+          ctx.strokeStyle = "#0056e2";
+          ctx.lineWidth = trailSize/2.5;
+          ctx.beginPath();
+          ctx.arc(x, y, trailSize/2.5, 0, 2 * Math.PI);
+          ctx.stroke();
+        }
+
+        function turn(turnDir) {
+          if (turnDir == "UP" && dir != "DOWN") {
+            dir = "UP";
+          } else if (turnDir == "RIGHT" && dir != "LEFT") {
+            dir = "RIGHT";
+          } else if (turnDir == "DOWN" && dir != "UP") {
+            dir = "DOWN";
+          } else if (turnDir == "LEFT" && dir != "RIGHT") {
+            dir = "LEFT";
+          }
+        }
+
+        function collisionCheck() {
+          var cMap;
+          switch (dir) {
+            case "UP":
+              cMap = ctx.getImageData(x - trailSize / 2, y - trailSize / 2 - 1, trailSize, 1).data;
+              break;
+            case "RIGHT":
+              cMap = ctx.getImageData(x + trailSize / 2 + 1, y - trailSize/2, 1, trailSize).data;
+              break;
+            case "DOWN":
+              cMap = ctx.getImageData(x - trailSize / 2, y + trailSize / 2 + 1, trailSize, 1).data;
+              break;
+            case "LEFT":
+              cMap = ctx.getImageData(x - trailSize / 2 - 1, y - trailSize/2, 1, trailSize).data;
+              break;
+          }
+          if (x < 0 || x > size || y < 0 || y > size) {
+            die();
+          } else {
+            for (var i = 0; i < colors.length; i++) {
+              if (colors[i] == rgbToHex(cMap[0], cMap[1], cMap[2])) {
+                die();
+                break;
+              }
+            }
+          }
+        }
+
+        function die() {
+          clearInterval(playing);
+          console.log("dead");
+        }
+
+        document.addEventListener("keydown", keyHandler, false);
+        function keyHandler(key) {
+          console.log("i made it");
+          switch (key.keyCode) {
+            case 38:
+              turn("UP");
+              break;
+            case 39:
+              turn("RIGHT");
+              break;
+            case 40:
+              turn("DOWN");
+              break;
+            case 37:
+              turn("LEFT");
+              break;
+          }
+        }
+        
+        //various utilities I needed
+        function rgbToHex(red, green, blue) {
+          var rgb = blue | (green << 8) | (red << 16);
+          return '#' + (0x1000000 + rgb).toString(16).slice(1);
+        }
+
+        function reset(){
+          dir = "UP";
+          x = size/2;
+          y = size/2;
+          ctx.fillStyle = "#303030";
+          ctx.fillRect(0, 0, size, size);
+        }
+      });
+
     </script>
   </body>
 </html>
