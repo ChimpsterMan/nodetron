@@ -10,6 +10,7 @@
       }
       #content {
         text-align:center;
+        
       }
       #controls {
         position: absolute;
@@ -18,19 +19,24 @@
       #start {
         background: blue;
       }
-      #start a{
-        font-size:20vh;
+      #onScreen {
+        position:relative;
+        bottom:70vh;
+        font-size:450%;
+        text-align:center;
+        z-index:1;
       }
     </style>
   </head>
   <body>
     <div id="controls">
-      <div id="start">
-        <a onclick="startGame()">Start</a>
+      <div>
+        
       </div>
     </div>
     <div id="content">
       <canvas id="game"></canvas>
+      <h1 id="onScreen"></h1>
     </div>
     
     <script src="/socket.io/socket.io.js"></script>
@@ -46,30 +52,69 @@
         var x = size / 2,
           y = size / 2,
           dir = "UP",
-          speed = 4,
-          trailSize = 5,
-          colors = [],
+          speed = scale(4),
+          trailSize = scale(3),
+          colorList = ['#FF0000' , '#800000' , '#FFFF00' , '#808000' ,
+                 '#00FF00' , '#008000' , '#00FFFF' , '#0000FF' , 
+                 '#000080' , '#FF00FF' , '#800080'],
           color,
           spectator = false;
         
         socket.on('connect', function(){
-          socket.emit('newConnection');
+          socket.emit('newconnection');
         });
         
-        socket.on('setup', function(c, status){
+        socket.on('setup', function(c, index, status){
           if (status == "playing") {
             color = c;
+            x = scale((index+1)*100);
+            y = canvas.height/2;
+            $('#onScreen').text('Player');
+            setTimeout(function(){
+              $('#onScreen').text('');
+            }, 1000);
           } else {
             spectator = true;
+            $('#onScreen').text('Spectator');
+            setTimeout(function(){
+              $('#onScreen').text('');
+            }, 1000);
           }
         });
         
         function startGame(){
-          socket.emit('startGame');
+          socket.emit('startgame');
         }
         
+        socket.on('start', function(){
+          var count = 5;
+          if (!spectator) {
+            socket.emit('movement', x, y, color);
+          }
+          var counting = setInterval(function(){
+            $('#onScreen').text(count);
+            count-=1;
+            if (count < -1){
+              clearInterval(counting);
+              $('#onScreen').text('Go!');
+              setTimeout(function(){
+                $('#onScreen').text('');
+                if (!spectator) {
+                  start();
+                }
+              }, 500);
+            }
+          }, 1000);
+        });
         
-        colors.push("#0056e2");
+        socket.on('move', function(nX,nY,nC){
+          ctx.fillStyle = nC;
+          ctx.beginPath();
+          ctx.arc(scale(nX), scale(nY), trailSize, 0, 2 * Math.PI, true);
+          ctx.closePath();
+          ctx.fill();
+        });
+        
         ctx.fillStyle = "#303030";
         ctx.fillRect(0, 0, size, size);
         trailSize*=2.5;
@@ -93,16 +138,9 @@
               x -= speed;
               break;
           }
-        
+          socket.emit('movement', x, y, color);
           //collisions
           collisionCheck();
-        
-          //draw the trail
-          ctx.strokeStyle = "#0056e2";
-          ctx.lineWidth = trailSize/2.5;
-          ctx.beginPath();
-          ctx.arc(x, y, trailSize/2.5, 0, 2 * Math.PI);
-          ctx.stroke();
         }
 
         function turn(turnDir) {
@@ -149,7 +187,7 @@
           clearInterval(playing);
           console.log("dead");
         }
-
+        
         document.addEventListener("keydown", keyHandler, false);
         function keyHandler(key) {
           console.log("i made it");
@@ -166,6 +204,9 @@
             case 37:
               turn("LEFT");
               break;
+            case 13:
+              startGame();
+              break;
           }
         }
         
@@ -173,6 +214,11 @@
         function rgbToHex(red, green, blue) {
           var rgb = blue | (green << 8) | (red << 16);
           return '#' + (0x1000000 + rgb).toString(16).slice(1);
+        }
+        
+        function scale(num){
+          var standard = 605;
+          return canvas.height/((standard)/num);
         }
 
         function reset(){
