@@ -10,33 +10,32 @@
       }
       #content {
         text-align:center;
-        
-      }
-      #controls {
-        position: absolute;
-        display: block;
+        float:;
       }
       #start {
         background: blue;
       }
-      #onScreen {
+      #midScreen {
         position:relative;
         bottom:70vh;
         font-size:450%;
         text-align:center;
         z-index:1;
       }
+      #onlinecounter {
+        position:relative;
+        bottom:100vh;
+        font-size:200%;
+        z-index:1;
+      }
+      
     </style>
   </head>
   <body>
-    <div id="controls">
-      <div>
-        
-      </div>
-    </div>
     <div id="content">
       <canvas id="game"></canvas>
-      <h1 id="onScreen"></h1>
+        <h1 id="onlinecounter">Online:  </h1>
+        <h1 id="midScreen"></h1>
     </div>
     
     <script src="/socket.io/socket.io.js"></script>
@@ -54,13 +53,14 @@
           dir = "UP",
           speed = scale(4),
           trailSize = scale(3),
-          colorList = ['#FF0000' , '#800000' , '#FFFF00' , '#808000' ,
-                 '#00FF00' , '#008000' , '#00FFFF' , '#0000FF' , 
-                 '#000080' , '#FF00FF' , '#800080'],
+          colorList = ['#800000' , '#808000' , '#008000' , '#000080' , '#800080'],
+          moveHistory = [],
           color,
+          playing,
           spectator = false;
         
         socket.on('connect', function(){
+          reset();
           socket.emit('newconnection');
         });
         
@@ -69,16 +69,19 @@
             color = c;
             x = scale((index+1)*100);
             y = canvas.height/2;
-            $('#onScreen').text('Player');
+            $('#midScreen').text('Player');
             setTimeout(function(){
-              $('#onScreen').text('');
+              $('#midScreen').text('');
             }, 1000);
           } else {
             spectator = true;
-            $('#onScreen').text('Spectator');
+            $('#midScreen').text('Spectator');
             setTimeout(function(){
-              $('#onScreen').text('');
+              $('#midScreen').text('');
             }, 1000);
+          }
+          if (!spectator){
+            draw(x,y,color);
           }
         });
         
@@ -89,16 +92,17 @@
         socket.on('start', function(){
           var count = 5;
           if (!spectator) {
+            socket.emit('alive');
             socket.emit('movement', x, y, color);
           }
           var counting = setInterval(function(){
-            $('#onScreen').text(count);
+            $('#midScreen').text(count);
             count-=1;
             if (count < -1){
               clearInterval(counting);
-              $('#onScreen').text('Go!');
+              $('#midScreen').text('Go!');
               setTimeout(function(){
-                $('#onScreen').text('');
+                $('#midScreen').text('');
                 if (!spectator) {
                   start();
                 }
@@ -108,18 +112,64 @@
         });
         
         socket.on('move', function(nX,nY,nC){
+          draw(nX,nY,nC);
+        });
+        
+        function draw(nX,nY,nC){
           ctx.fillStyle = nC;
           ctx.beginPath();
           ctx.arc(scale(nX), scale(nY), trailSize, 0, 2 * Math.PI, true);
           ctx.closePath();
           ctx.fill();
+        }
+        
+        socket.on('playercheck', function(){
+          socket.emit('alive');
+        });
+        
+        socket.on('onlineUpdate', function(online){
+          $('#onlinecounter').text('Online: ' + online);
+        });
+        
+        socket.on('removetrail', function(c){
+          if(colorList[c] != color){
+            socket.emit('lines', lineHistory);
+          }
+        });
+        
+        socket.on('redraw', function(lines){
+          $('#midScreen').text('redrawing');
+          for (var i = 0; i < lines.length; i++){
+            ctx.beginPath();
+            ctx.strokeStyle = 30;
+            ctx.moveTo(lines[i][0][0],lines[i][0][1]);
+            ctx.lineTo(lines[i][1][0],lines[i][1][1]);
+            ctx.closePath();
+            ctx.stroke();
+          }
+        });
+        
+        socket.on('gameover', function(){
+          $('#midScreen').text('Gameover!');
+          setTimeout(function(){
+            $('#midScreen').text('');
+            reset();
+          }, 3000);
         });
         
         ctx.fillStyle = "#303030";
         ctx.fillRect(0, 0, size, size);
         trailSize*=2.5;
         function start(){
-          var playing = setInterval(run, 30);
+          playing = setInterval(run, 30);
+          moveHistory.push([x,y],[x,y]);
+        }
+        
+        function bigMessage(msg,time){
+          $('#midScreen').text(msg);
+          setTimeout(function(){
+            $('#midScreen').text('');
+          }, time);
         }
         
         function run() {
@@ -138,12 +188,22 @@
               x -= speed;
               break;
           }
+          //local draw
+          draw(x,y,color);
+          
+          //server draw
           socket.emit('movement', x, y, color);
+          
           //collisions
           collisionCheck();
+          
+          //record move
+          moveHistory[moveHistory.length-1][1][0] = x;
+          moveHistory[moveHistory.length-1][1][1] = y;
         }
 
         function turn(turnDir) {
+          moveHistory.push([x,y],[x,y]);
           if (turnDir == "UP" && dir != "DOWN") {
             dir = "UP";
           } else if (turnDir == "RIGHT" && dir != "LEFT") {
@@ -157,25 +217,26 @@
 
         function collisionCheck() {
           var cMap;
+          var prox = scale(2);
           switch (dir) {
             case "UP":
-              cMap = ctx.getImageData(x - trailSize / 2, y - trailSize / 2 - 1, trailSize, 1).data;
+              cMap = ctx.getImageData(x - trailSize / 2, y - trailSize - prox, trailSize, 1).data;
               break;
             case "RIGHT":
-              cMap = ctx.getImageData(x + trailSize / 2 + 1, y - trailSize/2, 1, trailSize).data;
+              cMap = ctx.getImageData(x + trailSize + prox, y - trailSize/2, 1, trailSize).data;
               break;
             case "DOWN":
-              cMap = ctx.getImageData(x - trailSize / 2, y + trailSize / 2 + 1, trailSize, 1).data;
+              cMap = ctx.getImageData(x - trailSize / 2, y + trailSize + prox, trailSize, 1).data;
               break;
             case "LEFT":
-              cMap = ctx.getImageData(x - trailSize / 2 - 1, y - trailSize/2, 1, trailSize).data;
+              cMap = ctx.getImageData(x - trailSize - prox, y - trailSize/2, 1, trailSize).data;
               break;
           }
           if (x < 0 || x > size || y < 0 || y > size) {
             die();
           } else {
-            for (var i = 0; i < colors.length; i++) {
-              if (colors[i] == rgbToHex(cMap[0], cMap[1], cMap[2])) {
+            for (var i = 0; i < colorList.length; i++) {
+              if (colorList[i] == rgbToHex(cMap[0], cMap[1], cMap[2])) {
                 die();
                 break;
               }
@@ -185,7 +246,9 @@
 
         function die() {
           clearInterval(playing);
+          spectator = true;
           console.log("dead");
+          socket.emit('death', color);
         }
         
         document.addEventListener("keydown", keyHandler, false);
@@ -205,7 +268,9 @@
               turn("LEFT");
               break;
             case 13:
+              if (!playing){
               startGame();
+              }
               break;
           }
         }
