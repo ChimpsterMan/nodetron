@@ -16,7 +16,7 @@ app.get('/', function(req,res){
 io.on('connection', function(socket){
   socket.on('newconnection', function(){
     if (index > 11 && !inGame){
-      socket.emit('setup', '#FFFFFF', -1, 'spect');
+      socket.emit('setup', '#FFFFFF', 0, 'spect');
     }
     else {
       socket.emit('setup', colorList[index], index, 'playing');
@@ -36,7 +36,7 @@ io.on('connection', function(socket){
   
   socket.on('alive', function(){
     alive += 1;
-    console.log(alive);
+    console.log('alive check' + alive);
   });
   
   socket.on('movement', function(x,y,c){
@@ -52,8 +52,9 @@ io.on('connection', function(socket){
     console.log('death');
     io.sockets.emit('removetrail', findPlayer(socket.id));
     alive -= 1;
-    if (alive <= 0){
+    if (alive <= 0 && inGame){
       io.sockets.emit('gameover');
+      reset(5000);
     }
     console.log(alive);
   });
@@ -62,24 +63,43 @@ io.on('connection', function(socket){
     console.log('disconnection');
     online-=1;
     alive = 0;
-    io.sockets.emit('playercheck');
     setTimeout(function(){
-    if (alive <= 0){
+    io.sockets.emit('playercheck');
+    }, 500);
+    setTimeout(function(){
+    if (alive <= 0 && inGame){
       io.sockets.emit('gameover');
+      reset(5000);
     }
     }, 5000);
     io.sockets.emit('remove', findPlayer(socket.id));
     io.sockets.emit('onlineUpdate', online);
   });
-});
-
-function findPlayer(id){
+  
+  socket.on('forcereset', function(){
+    reset(0);
+  });
+  
+  function reset(timeDelay){
+    console.log('resetting');
+    setTimeout(function(){
+    playerList = [];
+    index = 0;
+    inGame = false;
+    online = 0;
+    alive = 0;
+    io.sockets.emit('reconnect');
+    }, timeDelay);
+  }
+  
+  function findPlayer(id){
   for (var i = 0; i < playerList.length; i++){
     if (playerList[i] == id){
       return i;
     }
   }
 }
+});
 
 http.listen(port, function(){
   console.log('listening on *:' + port);

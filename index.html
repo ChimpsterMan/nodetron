@@ -51,15 +51,21 @@
         var x = size / 2,
           y = size / 2,
           dir = "UP",
-          speed = scale(4),
-          trailSize = scale(3),
+          speed = scale(2),
+          trailSize = scale(1.5),
           colorList = ['#800000' , '#808000' , '#008000' , '#000080' , '#800080'],
           moveHistory = [],
+          inGame = false,
           color,
           playing,
           spectator = false;
         
         socket.on('connect', function(){
+          reset();
+          socket.emit('newconnection');
+        });
+        
+        socket.on('reconnect', function(){
           reset();
           socket.emit('newconnection');
         });
@@ -124,7 +130,9 @@
         }
         
         socket.on('playercheck', function(){
+          if (!spectator){
           socket.emit('alive');
+          }
         });
         
         socket.on('onlineUpdate', function(online){
@@ -161,7 +169,8 @@
         ctx.fillRect(0, 0, size, size);
         trailSize*=2.5;
         function start(){
-          playing = setInterval(run, 30);
+          playing = setInterval(run, 15);
+          inGame = true;
           moveHistory.push([x,y],[x,y]);
         }
         
@@ -247,13 +256,13 @@
         function die() {
           clearInterval(playing);
           spectator = true;
+          inGame = false;
           console.log("dead");
           socket.emit('death', color);
         }
         
         document.addEventListener("keydown", keyHandler, false);
         function keyHandler(key) {
-          console.log("i made it");
           switch (key.keyCode) {
             case 38:
               turn("UP");
@@ -268,9 +277,12 @@
               turn("LEFT");
               break;
             case 13:
-              if (!playing){
+              if (!inGame){
               startGame();
               }
+              break;
+            case 192:
+              socket.emit('forcereset');
               break;
           }
         }
@@ -288,6 +300,9 @@
 
         function reset(){
           dir = "UP";
+          playing: false;
+          spectator = false;
+          inGame = false;
           x = size/2;
           y = size/2;
           ctx.fillStyle = "#303030";
