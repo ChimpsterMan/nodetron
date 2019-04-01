@@ -52,9 +52,9 @@ io.on('connection', function(socket){
     console.log('death');
     io.sockets.emit('removetrail', findPlayer(socket.id));
     alive -= 1;
-    if (alive <= 0 && inGame){
+    if (alive <= 1 && inGame){
       io.sockets.emit('gameover');
-      reset(5000);
+      reset(3000);
     }
     console.log(alive);
   });
@@ -67,11 +67,14 @@ io.on('connection', function(socket){
     io.sockets.emit('playercheck');
     }, 500);
     setTimeout(function(){
-    if (alive <= 0 && inGame){
+    if (alive <= 1 && inGame){
       io.sockets.emit('gameover');
-      reset(5000);
+      reset(3000);
     }
     }, 5000);
+    if (!inGame){
+      reset(0);
+    }
     io.sockets.emit('remove', findPlayer(socket.id));
     io.sockets.emit('onlineUpdate', online);
   });
